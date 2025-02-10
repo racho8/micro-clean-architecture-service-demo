@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"github.com/hashicorp/consul/api"
 )
 
 func newServiceCtx() sctx.ServiceContext {
@@ -106,6 +107,25 @@ func StartGRPCServices(serviceCtx sctx.ServiceContext) {
 
 	pb.RegisterUserServiceServer(s, composer.ComposeUserGRPCService(serviceCtx))
 	pb.RegisterAuthServiceServer(s, composer.ComposeAuthGRPCService(serviceCtx))
+
+	// Register service with Consul
+	consulConfig := api.DefaultConfig()
+	consulClient, err := api.NewClient(consulConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	serviceID := fmt.Sprintf("grpc-service-%d", configComp.GetGRPCPort())
+	serviceRegistration := &api.AgentServiceRegistration{
+		ID:      serviceID,
+		Name:    "grpc-service",
+		Port:    configComp.GetGRPCPort(),
+		Address: "localhost",
+	}
+
+	if err := consulClient.Agent().ServiceRegister(serviceRegistration); err != nil {
+		log.Fatal(err)
+	}
 
 	if err := s.Serve(lis); err != nil {
 		log.Fatalln(err)

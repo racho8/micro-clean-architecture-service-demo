@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"log"
+	"github.com/hashicorp/consul/api"
 )
 
 type authClient struct {
@@ -28,8 +29,26 @@ func (ac *authClient) IntrospectToken(ctx context.Context, accessToken string) (
 func ComposeAuthRPCClient(serviceCtx sctx.ServiceContext) *authClient {
 	configComp := serviceCtx.MustGet(common.KeyCompConf).(common.Config)
 
+	consulConfig := api.DefaultConfig()
+	consulClient, err := api.NewClient(consulConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	service, _, err := consulClient.Health().Service("grpc-service", "", true, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(service) == 0 {
+		log.Fatal("No healthy service instances found")
+	}
+
+	serviceAddress := service[0].Service.Address
+	servicePort := service[0].Service.Port
+
 	opts := grpc.WithTransportCredentials(insecure.NewCredentials())
-	clientConn, err := grpc.Dial(configComp.GetGRPCServerAddress(), opts)
+	clientConn, err := grpc.Dial(fmt.Sprintf("%s:%d", serviceAddress, servicePort), opts)
 
 	if err != nil {
 		log.Fatal(err)
@@ -41,8 +60,26 @@ func ComposeAuthRPCClient(serviceCtx sctx.ServiceContext) *authClient {
 func composeUserRPCClient(serviceCtx sctx.ServiceContext) pb.UserServiceClient {
 	configComp := serviceCtx.MustGet(common.KeyCompConf).(common.Config)
 
+	consulConfig := api.DefaultConfig()
+	consulClient, err := api.NewClient(consulConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	service, _, err := consulClient.Health().Service("grpc-service", "", true, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(service) == 0 {
+		log.Fatal("No healthy service instances found")
+	}
+
+	serviceAddress := service[0].Service.Address
+	servicePort := service[0].Service.Port
+
 	opts := grpc.WithTransportCredentials(insecure.NewCredentials())
-	clientConn, err := grpc.Dial(configComp.GetGRPCServerAddress(), opts)
+	clientConn, err := grpc.Dial(fmt.Sprintf("%s:%d", serviceAddress, servicePort), opts)
 
 	if err != nil {
 		log.Fatal(err)
